@@ -346,7 +346,7 @@ namespace PinVol
         public float localVolume = 0.0f;
         public float local2Volume = 0.0f;
         public VolumeMode volumeMode = VolumeMode.Day;
-        public VolumeModeSource volumeModeSource = VolumeModeSource.None;
+        public VolumeModeSource volumeModeSource = VolumeModeSource.None;      
 
         // SSF stuff
         public float SSFBGVolume = 0.0f;
@@ -975,6 +975,10 @@ namespace PinVol
             // set the initial unmute-on-volume-change setting
             ckUnmuteOnVolChange.Checked = cfg.UnMuteOnVolChange;
 
+            // set the initial night lock settings
+            chkLockNightVol.Checked = cfg.NightVolLock;
+            cboNightLockBehavior.SelectedIndex = (int)cfg.NightLockBehavior;
+
             // set the initial OSD checkboxes
             ckOSDOnHotkeys.Checked = cfg.OSDOnHotkeys;
             ckOSDOnAppSwitch.Checked = cfg.OSDOnAppSwitch;
@@ -1316,9 +1320,33 @@ namespace PinVol
 
         private void GlobalVolumeAdjust(float delta, OSDWin.OSDType osdType)
         {
-            SetGlobalVol(globalVolume[(int)volumeMode] + delta);
-            CheckMute();
-            UpdateVolume(osdType);
+            if (!cfg.NightVolLock || volumeMode == VolumeMode.Day)
+            {
+                SetGlobalVol(globalVolume[(int)volumeMode] + delta);
+                CheckMute();
+                UpdateVolume(osdType);
+            }
+            else
+            {
+                switch (cfg.NightLockBehavior)
+                {
+                    case Config.NightLockBehaviors.Release:
+                    {
+                        SetNightMode(VolumeModeSource.None, false, OSDWin.OSDType.Global);
+                        SetGlobalVol(globalVolume[(int)VolumeMode.Night] + delta);
+                        CheckMute();
+                        UpdateVolume(osdType);
+                        break;
+                    }
+                    default:    //i.e. Hold
+                    {
+                        SetGlobalVol(globalVolume[(int)volumeMode]);
+                        CheckMute();
+                        UpdateVolume(osdType);
+                        break;
+                    }
+                }
+            }
         }
 
         private void LocalVolumeAdjust(float delta, OSDWin.OSDType osdType)
@@ -1498,6 +1526,11 @@ namespace PinVol
             trkGlobalVol.Value = g;
             lblGlobalVol.Text = g + "%";
 
+            // update the night volume volume indicator with the current night value
+            int ng = (int)Math.Round(globalVolume[(int)VolumeMode.Night] * 100.0f);
+            lblNightVol.Text = ng + "%";
+
+
             // update the SSF volume trackbar controls
             trkSSFBGVol.Value = (int)LimitSSFVolume(SSFBGVolume);
             trkSSFRSVol.Value = (int)LimitSSFVolume(SSFRSVolume);
@@ -1597,6 +1630,12 @@ namespace PinVol
             CheckMute();
             UpdateVolume(OSDWin.OSDType.None);
         }
+
+        private void trkNightVol_Scroll(object sender, EventArgs e)
+        {
+
+        }
+
 
         private void trkLocalVol_Scroll(object sender, EventArgs e)
         {
@@ -2067,7 +2106,33 @@ namespace PinVol
             Log.viewer?.Close();
 		}
 
-		private void trkSSFRSVol_Scroll(object sender, EventArgs e)
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void chkLockNightVol_CheckedChanged(object sender, EventArgs e)
+        {
+            bool f = chkLockNightVol.Checked;
+            if (cfg.NightVolLock != f)
+            {
+                cfg.NightVolLock = f;
+                SetCfgDirty();
+            }
+        }
+
+        private void cboNightLockBehavior_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            Config.NightLockBehaviors f = (Config.NightLockBehaviors)cboNightLockBehavior.SelectedIndex;
+                
+            if (cfg.NightLockBehavior != f)
+            {
+                cfg.NightLockBehavior = f;
+                SetCfgDirty();
+            }
+        }
+
+        private void trkSSFRSVol_Scroll(object sender, EventArgs e)
         {
             lblSSFRSVol.Text = trkSSFRSVol.Value + " dB";
             int value = trkSSFRSVol.Value;
