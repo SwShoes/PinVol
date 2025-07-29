@@ -36,7 +36,7 @@ namespace PinVol
 
             // set the night mode icon transparency
             nightMode.MakeTransparent(nightMode.GetPixel(0, 0));
-            lockedVol.MakeTransparent(lockedVol.GetPixel(0, 0));
+            //lockedVol.MakeTransparent(lockedVol.GetPixel(0, 0));
         }
 
         // the main window (source of the current volume level)
@@ -309,14 +309,12 @@ namespace PinVol
                 });
 
                 // draw the lock icon next to the level if the requested volume control is currently restricted by a lock
-                if (mainwin.cfg.NightVolLock)
+                if (mainwin.cfg.NightVolLock && (mainwin.osdType == OSDType.Global))
                 {
-                    bool origImgSize = false;
-                    float drawWidth = origImgSize ? (float)lockedVol.Width : (psz * 2.5f);
-                    float drawHeight = origImgSize ? (float)lockedVol.Height : (psz * 2.5f);
-                    SizeF centerAdjust = new SizeF(0, -drawHeight * 0.148f);
-                    float xSpacing = 0f;
-                    PointF lockedBmpOrigin = new PointF(tx + titlesz.Width/2 + xSpacing + centerAdjust.Width, ty - titlesz.Height/2f - drawHeight/2f + centerAdjust.Height);
+                    float drawWidth = psz;  //Match dimensions of nightMode icon
+                    float drawHeight = psz; //Match dimensions of nightMode icon.
+                    float titleMarginH = 8f;
+                    PointF lockedBmpOrigin = new PointF(tx + titlesz.Width/2 + titleMarginH, py);
                     gr.DrawImage(lockedVol, new PointF[]
                     {
                         lockedBmpOrigin,
