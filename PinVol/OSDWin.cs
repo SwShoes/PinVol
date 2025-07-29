@@ -7,6 +7,7 @@ using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+//using System.Windows;
 using System.Windows.Forms;
 
 namespace PinVol
@@ -198,7 +199,7 @@ namespace PinVol
             
             volatile bool windowResized;
             volatile bool textChanged;
-            public void SetWindowSize(Rectangle r) { windowRect = r; windowResized = true; }
+            //public void SetWindowSize(Rectangle r) { windowRect = r; windowResized = true; }
             public void SetText(string str) 
             {
                 text = str;
@@ -249,7 +250,7 @@ namespace PinVol
 
         void DrawLayout(Graphics gr, canvasStates c)
         {
-            DrawBg(gr);
+            //DrawBg(gr);
             DrawOsdInfo(gr);
             DrawVolumeBar(gr);
             DrawText(gr);
@@ -261,6 +262,16 @@ namespace PinVol
 
         void DrawOsd(Graphics gr, String title, float vol, int r)
         {
+            // handle window rotation affects on width & height: 
+            // (even though graphics calls were transformed to account for the rotation, the
+            // Windows axes are not affected, making Width and Height reversed in some cases.)
+            j.windowRect = ClientRectangle;
+            if (r == 90 || r == 270)
+            {
+                j.windowRect.Width = ClientRectangle.Height;
+                j.windowRect.Height = ClientRectangle.Width;
+            }
+
             const int buttonMargin = 8;
             const float iconScale = 0.9f;
 
@@ -268,13 +279,12 @@ namespace PinVol
 
             // initialize the canvas states
             j.scaleRef = gr.MeasureString("X", font);
-            j.windowRect = ClientRectangle;
+
             Size osdPadding = new Size((int)(j.scaleRef.Width / -2.0f), (int)(j.scaleRef.Height / -4.0f));
 
 
             // calculated padded space of OSD Info rect
             j.osdInfoRect = j.windowRect;
-            //j.osdInfoRect.Inflate((int)(j.scaleRef.Width / -2.0f), (int)(j.scaleRef.Height / -4.0f));
             j.osdInfoRect.Inflate(osdPadding);
 
             // set the volume bar rect
@@ -286,33 +296,190 @@ namespace PinVol
             j.SetText(title);
             SizeF titlesz = gr.MeasureString(title, font);
             j.textRect.Size = Size.Ceiling(titlesz);
-            AlignRect(j.osdInfoRect, ref j.textRect, AlignMode.HCenter);
-            AlignRect(j.volumeBarRect, ref j.textRect, AlignMode.Above, 8);
-
-            j.icon1Rect.Width = j.icon1Rect.Height = (int)Math.Floor(j.scaleRef.Height * iconScale);
-            j.icon2Rect.Width = j.icon2Rect.Height = (int)Math.Floor(j.scaleRef.Height * iconScale);
-
-
-            AlignRect(j.textRect, ref j.icon1Rect, AlignMode.VCenter);
-            AlignRect(j.textRect, ref j.icon2Rect, AlignMode.VCenter);
-            AlignRect(j.textRect, ref j.icon1Rect, AlignMode.LeftOf, buttonMargin);
-            AlignRect(j.textRect, ref j.icon2Rect, AlignMode.RightOf, buttonMargin);
-
 
             // position the text rect above volume bar
+            AlignRect(j.osdInfoRect, ref j.textRect, AlignMode.HCenter);
+            AlignRect(j.volumeBarRect, ref j.textRect, AlignMode.Above, 8);
 
             // determine the bgRect based on top of text rect.
             j.bgRect = j.windowRect;  //todo: Shoud not be the window rect.
 
 
             // make osdInfoRect (padding rect) the smaller bgRect
+            j.icon1Rect.Width = j.icon1Rect.Height = (int)Math.Floor(j.scaleRef.Height * iconScale);
+            j.icon2Rect.Width = j.icon2Rect.Height = (int)Math.Floor(j.scaleRef.Height * iconScale);
+            AlignRect(j.textRect, ref j.icon1Rect, AlignMode.VCenter);
+            AlignRect(j.textRect, ref j.icon2Rect, AlignMode.VCenter);
+            AlignRect(j.textRect, ref j.icon1Rect, AlignMode.LeftOf, buttonMargin);
+            AlignRect(j.textRect, ref j.icon2Rect, AlignMode.RightOf, buttonMargin);
 
             // place icon1Rect and icon2Rect relative to textRect
 
-            // draw the OSD layout
-            DrawLayout(gr, j);
+            // draw the underlying background
+            DrawBg(gr);
 
-            DrawVolumeBar(gr, title, vol, r);
+            // draw the OSD layout
+            //DrawLayout(gr, j);
+
+            //DrawVolumeBar(gr, title, vol, r);
+            NewDrawVolumeBar(gr, title, vol, r, j.volumeBarRect);
+        }
+
+        void NewDrawVolumeBar(Graphics gr, String title, float vol, int r, Rectangle rect)
+        {
+            // Get the window size.  If rotated 90 or 270 degrees, swap width
+            // and height for our bar size calculations.
+            //Size winsz = ClientSize;
+            Size winsz = rect.Size;
+            //if (r == 90 || r == 270)
+            //{
+            //    //winsz.Width = ClientSize.Height;
+            //    //winsz.Height = ClientSize.Width;
+            //    winsz.Width = rect.Height;
+            //    winsz.Height = rect.Width;
+            //}
+
+
+            // Figure the bar height, based on the text height
+            SizeF txtsz = gr.MeasureString("X", font);
+            //Size barsz = new Size(winsz.Width, (int)(txtsz.Height * 1.5f));
+            Size barsz = rect.Size;
+
+            // Figure the bar top position, aligning at the bottom
+            //int left = 0, right = barsz.Width;
+            //int top = winsz.Height - barsz.Height;
+            int left = rect.Left;
+            int right = rect.Right;
+            int top = rect.Top;
+            int bottom = rect.Bottom;
+
+            // figure the volume bar width in pixels
+            int volwid = (int)(barsz.Width * vol);
+
+            // Start with a default tick width, then refigure so that we fit an
+            // integral number (or as close as possible) into the available width.
+            int tickwid = 30, ticksp = 10;
+            int availwid = winsz.Width - tickwid;
+            int nticks = Math.Max(availwid / (tickwid + ticksp), 1);
+            tickwid = Math.Max((availwid / nticks) - ticksp, 1);
+
+            // select the brushes
+            Brush black = Brushes.Black;
+            Brush rcbrush, txbrush;
+            switch (mainwin.osdType)
+            {
+                case OSDType.Local:
+                    rcbrush = txbrush = Brushes.Lime;
+                    break;
+
+                case OSDType.Local2:
+                    rcbrush = txbrush = Brushes.Violet;
+                    break;
+
+                case OSDType.SSFBG:
+                case OSDType.SSFRS:
+                case OSDType.SSFFS:
+                    rcbrush = txbrush = Brushes.White;
+                    break;
+
+                case OSDType.Global:
+                case OSDType.None:
+                default:
+                    if (mainwin.volumeMode == UIWin.VolumeMode.Night)
+                        rcbrush = txbrush = Brushes.Blue;
+                    else
+                        rcbrush = txbrush = Brushes.DeepSkyBlue;
+                    break;
+            }
+
+            // create an outline pen if needed
+            bool mute = mainwin.globalMute;
+            int penwid = 2;
+            using (Pen rcpen = mute ? new Pen(rcbrush, penwid) : null)
+            {
+                // draw the ticks
+                for (int x = left; x < right; x += tickwid + ticksp)
+                {
+                    // get the area of this tick
+                    Rectangle rc;
+                    Rectangle halftick = new Rectangle(x + tickwid / 4, top + barsz.Height / 4, tickwid / 2, barsz.Height / 2);
+                    bool drawhalf = false;
+                    if (x + tickwid <= volwid)
+                    {
+                        // we're still below the volume level, so draw a whole tick
+                        //rc = new Rectangle(x, top, tickwid, top + barsz.Height);
+                        rc = new Rectangle(x, top, tickwid, barsz.Height);
+                    }
+                    else if (x < volwid)
+                    {
+                        // this tick is partially within the volume level, so draw a portion
+                        // of the tick plus the small tick
+                        //rc = new Rectangle(x, top, volwid - x, top + barsz.Height);
+                        rc = new Rectangle(x, top, volwid - x, barsz.Height);
+                        if (rc.Right > halftick.Left)
+                            halftick = new Rectangle(rc.Right, halftick.Top, halftick.Right - rc.Right, halftick.Height);
+                        drawhalf = true;
+                    }
+                    else
+                    {
+                        // We're entirely beyond the volume level.  Draw a half tick.
+                        rc = halftick;
+                    }
+
+                    // draw the rectangle or outline
+                    if (mute)
+                        gr.DrawRectangle(rcpen, rc);
+                    else
+                        gr.FillRectangle(rcbrush, rc);
+
+                    // if we have a partial tick, also draw the half tick
+                    if (drawhalf)
+                    {
+                        if (mute)
+                            gr.DrawRectangle(rcpen, halftick);
+                        else
+                            gr.FillRectangle(rcbrush, halftick);
+                    }
+                }
+            }
+
+            // draw the title overlay
+            float tx = left + (right - left) / 2;
+            float ty = top - 8;
+            gr.DrawString(title, font, black, tx + 1, ty + 1, titleFmt);    // shadow
+            gr.DrawString(title, font, txbrush, tx, ty, titleFmt);          // main text
+
+            // add the night mode icon if appropriate
+            if (mainwin.volumeMode == UIWin.VolumeMode.Night)
+            {
+                SizeF titlesz = gr.MeasureString(title, font);
+                SizeF linesz = gr.MeasureString("X", font);
+                float psz = linesz.Height * .8f;
+                float px = tx - titlesz.Width / 2 - 8 - psz;
+                float py = ty - titlesz.Height / 2 - psz / 2;
+                gr.DrawImage(nightMode, new PointF[] {
+                    new PointF(px, py),
+                    new PointF(px + psz, py),
+                    new PointF(px, py + psz)
+                });
+
+                // draw the lock icon next to the level if the requested volume control is currently restricted by a lock
+                if (mainwin.cfg.NightVolLock && (mainwin.osdType == OSDType.Global))
+                {
+                    float drawWidth = psz;  //Match dimensions of nightMode icon
+                    float drawHeight = psz; //Match dimensions of nightMode icon.
+                    float titleMarginH = 8f;
+                    PointF lockedBmpOrigin = new PointF(tx + titlesz.Width / 2 + titleMarginH, py);
+                    gr.DrawImage(lockedVol, new PointF[]
+                    {
+                        lockedBmpOrigin,
+                        new PointF(lockedBmpOrigin.X + drawWidth, lockedBmpOrigin.Y),
+                        new PointF(lockedBmpOrigin.X, lockedBmpOrigin.Y + drawHeight)
+                    });
+                }
+            }
+
+
         }
 
         void DrawVolumeBar(Graphics gr, String title, float vol, int r)
