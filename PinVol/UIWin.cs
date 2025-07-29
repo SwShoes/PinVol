@@ -1621,7 +1621,7 @@ namespace PinVol
                 {
                     ShowWindow(osdwin.Handle, SW_SHOW_NO_ACTIVATE);
                     SetWindowPos(osdwin.Handle, HWND_TOPMOST, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
-                    osdwin.Opacity = 1.0f;
+                    osdwin.Opacity = 0.85f;
 
                     SetTimer(ref osdOffTime, timeInMs);
                     updateTimer.Enabled = true;
