@@ -265,6 +265,19 @@ namespace PinVol
         // Save the current global volume levels
         void SetGlobalVol(float vol)
         {
+            if (cfg.NightVolLock && (volumeMode == VolumeMode.Night))
+            {
+                if (cfg.NightLockBehavior == Config.NightLockBehaviors.Release)
+                {
+                    SetNightMode(VolumeModeSource.None, false, OSDWin.OSDType.Global);
+                }
+                else //behavior is Hold
+                {
+                    SetGlobalVolDirty();
+                    return;
+                }
+            }
+
             vol = LimitVolume(vol);
             if (vol != globalVolume[(int)volumeMode])
             {
